@@ -270,3 +270,217 @@ st.markdown(
     </div>
     """,
     unsafe_allow_html=True
+)
+
+# ---------------------------------------------------------
+# SENSOR CONTROL BAR & WORKSPACE
+# ---------------------------------------------------------
+col_settings, col_mode = st.columns([2, 1])
+
+with col_settings:
+    st.markdown("<div class='mono' style='font-size: 0.75rem; color: #94a3b8;'>ACQUISITION APERTURE</div>", unsafe_allow_html=True)
+    input_method = st.segmented_control(
+        "Sensor Source",
+        options=["Optical Sensor (Webcam)", "Digital Ingestion (Upload)"],
+        default="Optical Sensor (Webcam)",
+        label_visibility="collapsed"
+    )
+
+with col_mode:
+    sensitivity_threshold = st.slider(
+        "Detection Certainty Trigger",
+        min_value=0.50,
+        max_value=0.99,
+        value=0.65,
+        step=0.01,
+        help="Minimum confidence threshold required to trigger an affirmative human signature alert."
+    )
+
+st.markdown("<div style='height: 10px'></div>", unsafe_allow_html=True)
+
+# ---------------------------------------------------------
+# FRAME CAPTURE ZONE
+# ---------------------------------------------------------
+sensor_image = None
+
+col_viewport, col_telemetry = st.columns([1.2, 1], gap="large")
+
+with col_viewport:
+    st.markdown(
+        """
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+            <span style="font-family: 'Chakra Petch'; font-size: 1.05rem; font-weight: 600;">SENSOR VIEWPORT</span>
+            <span class="mono" style="font-size: 0.7rem; color: #64748b;">TARGET RES: 224x224 RGB</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    if input_method == "Optical Sensor (Webcam)":
+        cam_buffer = st.camera_input("Optical Sensor Feed", label_visibility="collapsed")
+        if cam_buffer:
+            sensor_image = Image.open(cam_buffer).convert("RGB")
+    else:
+        file_buffer = st.file_uploader("Ingest Reference Frame", type=["jpg", "jpeg", "png", "webp"], label_visibility="collapsed")
+        if file_buffer:
+            sensor_image = Image.open(file_buffer).convert("RGB")
+
+    # Corner bracket aesthetic wrapper
+    if sensor_image:
+        st.markdown(
+            """
+            <div class="sensor-viewport">
+                <div class="corner-tl"></div>
+                <div class="corner-tr"></div>
+                <div class="corner-bl"></div>
+                <div class="corner-br"></div>
+            """,
+            unsafe_allow_html=True
+        )
+        st.image(sensor_image, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+    else:
+        st.markdown(
+            """
+            <div style="border: 1px dashed rgba(255,255,255,0.12); border-radius: 12px; padding: 4.5rem 1rem; text-align: center;">
+                <div style="font-family: 'Chakra Petch'; font-size: 1.15rem; color: #94a3b8;">NO INGESTED SIGNAL</div>
+                <div class="mono" style="font-size: 0.75rem; color: #475569; margin-top: 6px;">Activate the optical sensor above to evaluate subject presence.</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+# ---------------------------------------------------------
+# INFERENCE & PRESENCE EVALUATION
+# ---------------------------------------------------------
+with col_telemetry:
+    st.markdown(
+        """
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+            <span style="font-family: 'Chakra Petch'; font-size: 1.05rem; font-weight: 600;">PRESENCE EVALUATION</span>
+            <span class="mono" style="font-size: 0.7rem; color: #64748b;">DISCRIMINATIVE INFERENCE</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    if sensor_image is not None:
+        if model is None:
+            st.error("Missing model artifact: `keras_model.h5` could not be initialized.")
+            st.stop()
+
+        # Teachable Machine Preprocessing Pipeline
+        t_start = time.perf_counter()
+        resized_img = sensor_image.resize((224, 224))
+        image_array = np.asarray(resized_img, dtype=np.float32)
+        
+        # Standard Teachable Machine normalization: scale from [0, 255] to [-1, 1]
+        normalized_img = (image_array / 127.5) - 1.0
+        data_payload = np.expand_dims(normalized_img, axis=0)
+
+        # Execute classification
+        predictions = model.predict(data_payload, verbose=0)[0]
+        eval_time_ms = (time.perf_counter() - t_start) * 1000
+
+        # Map predictions to metadata labels: Index 0 = Person, Index 1 = Person't
+        prob_person = float(predictions[0])
+        prob_absent = float(predictions[1]) if len(predictions) > 1 else (1.0 - prob_person)
+
+        is_person_detected = prob_person >= sensitivity_threshold
+
+        # High-Impact Tactical Status Hero
+        if is_person_detected:
+            st.markdown(
+                f"""
+                <div class="presence-hero-box presence-detected">
+                    <div class="presence-tag" style="color: #00ff88;">● VERIFIED ORGANIC SIGNATURE</div>
+                    <div class="presence-status" style="color: #00ff88;">HUMAN DETECTED</div>
+                    <div class="mono" style="font-size: 0.85rem; color: #cbd5e1;">
+                        Subject confirmed within sensor aperture with {prob_person * 100:.1f}% confidence.
+                    </div>
+                    <div class="meter-container">
+                        <div class="meter-bar-detected" style="width: {prob_person * 100}%;"></div>
+                    </div>
+                    <div class="mono" style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #64748b;">
+                        <span>TRIGGER: {sensitivity_threshold * 100:.0f}%</span>
+                        <span style="color: #00ff88;">INDEX: {prob_person:.3f}</span>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        else:
+            st.markdown(
+                f"""
+                <div class="presence-hero-box presence-vacant">
+                    <div class="presence-tag" style="color: #94a3b8;">○ SECTOR UNINHABITED</div>
+                    <div class="presence-status" style="color: #94a3b8;">NO PERSON DETECTED</div>
+                    <div class="mono" style="font-size: 0.85rem; color: #64748b;">
+                        Absence certainty is verified at {prob_absent * 100:.1f}%. Perimeter is vacant.
+                    </div>
+                    <div class="meter-container">
+                        <div class="meter-bar-vacant" style="width: {prob_absent * 100}%;"></div>
+                    </div>
+                    <div class="mono" style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #64748b;">
+                        <span>VACANCY PROBABILITY</span>
+                        <span style="color: #cbd5e1;">INDEX: {prob_absent:.3f}</span>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+        st.markdown("<div style='height: 16px'></div>", unsafe_allow_html=True)
+
+        # Telemetry Data Grid
+        cell_1, cell_2 = st.columns(2)
+        with cell_1:
+            st.markdown(
+                f"""
+                <div class="telemetry-cell">
+                    <div class="cell-title">Latency Speed</div>
+                    <div class="cell-val">{eval_time_ms:.1f} <span class="mono" style="font-size: 0.8rem; color: #64748b;">ms</span></div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        with cell_2:
+            st.markdown(
+                f"""
+                <div class="telemetry-cell">
+                    <div class="cell-title">Dominant Class</div>
+                    <div class="cell-val" style="color: {'#00ff88' if is_person_detected else '#94a3b8'};">
+                        {labels[0] if is_person_detected else labels[1]}
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+        st.markdown("<div style='height: 14px'></div>", unsafe_allow_html=True)
+
+        # Probability Breakdown Breakdown
+        chart_df = pd.DataFrame({
+            "Classification Target": [str(l) for l in labels],
+            "Probability": [prob_person, prob_absent]
+        })
+        st.bar_chart(
+            chart_df.set_index("Classification Target"),
+            color="#00ff88" if is_person_detected else "#64748b"
+        )
+
+    else:
+        st.markdown(
+            """
+            <div class="telemetry-cell" style="padding: 2.5rem 1.5rem; text-align: center;">
+                <div class="mono" style="font-size: 0.8rem; color: #64748b;">STANDBY MODE</div>
+                <div style="font-family: 'Chakra Petch'; font-size: 1.1rem; color: #f8fafc; margin-top: 6px;">
+                    AWAITING FRAME CAPTURE
+                </div>
+                <div class="mono" style="font-size: 0.75rem; color: #475569; margin-top: 6px;">
+                    Acquire an optical sample to populate presence indices and latency readouts.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )

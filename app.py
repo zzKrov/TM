@@ -4,8 +4,14 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 import streamlit as st
-from keras.models import load_model
-from keras.layers import DepthwiseConv2D
+
+# Use tf_keras (Keras 2 engine) to load legacy Teachable Machine models natively
+try:
+    from tf_keras.models import load_model
+    from tf_keras.layers import DepthwiseConv2D
+except ImportError:
+    from tensorflow.keras.models import load_model
+    from tensorflow.keras.layers import DepthwiseConv2D
 
 # ---------------------------------------------------------
 # PAGE SETUP
@@ -18,7 +24,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# NEON BIO-PERIMETER STYLESHEET
+# TACTICAL BIO-PERIMETER STYLESHEET
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -89,7 +95,7 @@ st.markdown(
         margin-bottom: 10px;
     }
 
-    /* Tactical Progress Bar */
+    /* Progress Bar */
     .meter-container {
         background: rgba(255, 255, 255, 0.08);
         height: 10px;
@@ -129,7 +135,7 @@ st.markdown(
         margin-top: 4px;
     }
 
-    /* Camera/Image styling */
+    /* Viewport frame */
     div[data-testid="stImage"] img, div[data-testid="stCameraInput"] {
         border: 1px solid var(--border-glow);
         border-radius: 12px;
@@ -141,16 +147,15 @@ st.markdown(
 )
 
 # ---------------------------------------------------------
-# CUSTOM DEPTHWISECONV2D FIX FOR TEACHABLE MACHINE
+# CUSTOM LAYER TO STRIP OBSOLETE 'GROUPS' ARGUMENT
 # ---------------------------------------------------------
 class CustomDepthwiseConv2D(DepthwiseConv2D):
-    """Overrides DepthwiseConv2D to discard obsolete 'groups' argument."""
     def __init__(self, **kwargs):
         kwargs.pop("groups", None)
         super().__init__(**kwargs)
 
 # ---------------------------------------------------------
-# LOAD MODEL & LABELS
+# MODEL & LABELS
 # ---------------------------------------------------------
 def load_labels():
     if os.path.exists("labels.txt"):
@@ -185,12 +190,12 @@ with st.sidebar:
 
     st.markdown("### 🛡️ SENSOR TELEMETRY")
     if model:
-        st.success("● MODEL: `keras_model.h5` [MOUNTED]")
+        st.success("● MODEL: `keras_model.h5` [ACTIVE]")
     else:
         st.error("❌ ERROR: `keras_model.h5` not found.")
 
     st.markdown("---")
-    st.markdown("### LABELS DETECTED")
+    st.markdown("### LABELS CONFIGURED")
     for i, lbl in enumerate(labels):
         st.markdown(f"<span class='mono' style='color:#00ff88;'>[{i}]</span> {lbl}", unsafe_allow_html=True)
 
@@ -198,10 +203,10 @@ with st.sidebar:
 # MAIN APP
 # ---------------------------------------------------------
 st.title("SENTINEL // PERSON DETECTOR")
-st.caption("Teachable Machine Autonomous Presence Sensor")
+st.caption("Autonomous Human Presence Monitoring")
 
 if model is None:
-    st.error("Missing `keras_model.h5` file in repository root.")
+    st.error("Missing `keras_model.h5` in repository root.")
     st.stop()
 
 col_view, col_telemetry = st.columns([1.2, 1], gap="large")
@@ -214,16 +219,16 @@ with col_telemetry:
     st.markdown("### Presence Telemetry")
 
     if camera_buffer is not None:
-        # Standard Teachable Machine (224, 224, 3) normalization
         t_start = time.perf_counter()
+        
+        # Teachable Machine input format: (1, 224, 224, 3) normalized [-1, 1]
         img = Image.open(camera_buffer).convert("RGB")
         img_resized = img.resize((224, 224))
         img_array = np.asarray(img_resized, dtype=np.float32)
-        
         normalized = (img_array / 127.5) - 1.0
         data = np.expand_dims(normalized, axis=0)
 
-        # Run inference
+        # Inference
         prediction = model.predict(data, verbose=0)[0]
         latency_ms = (time.perf_counter() - t_start) * 1000
 
@@ -231,11 +236,11 @@ with col_telemetry:
         conf = float(prediction[top_idx])
         top_label = labels[top_idx] if top_idx < len(labels) else f"Class {top_idx}"
 
-        # Classify presence: label contains "person" and not "person't" / "no person"
-        is_person = "person't" not in top_label.lower() and "no" not in top_label.lower() and "person" in top_label.lower()
+        # Classify presence: matches "person" while excluding "person't" or "no"
+        is_person = ("person't" not in top_label.lower()) and ("no" not in top_label.lower()) and ("person" in top_label.lower() or top_idx == 0)
         pct_conf = round(conf * 100, 1)
 
-        # Hero presence card
+        # Status Hero Card
         if is_person:
             st.markdown(
                 f"""
@@ -243,7 +248,7 @@ with col_telemetry:
                     <div class="hero-tag" style="color: #00ff88;">● ORGANIC SIGNATURE DETECTED</div>
                     <div class="hero-status" style="color: #00ff88;">HUMAN CONFIRMED</div>
                     <div class="mono" style="font-size: 0.85rem; color: #cbd5e1;">
-                        Subject detected with {pct_conf}% model certainty.
+                        Subject confirmed with {pct_conf}% model certainty.
                     </div>
                     <div class="meter-container">
                         <div class="meter-fill-detected" style="width: {pct_conf}%;"></div>
@@ -262,7 +267,7 @@ with col_telemetry:
                     <div class="hero-tag" style="color: #94a3b8;">○ PERIMETER UNINHABITED</div>
                     <div class="hero-status" style="color: #94a3b8;">NO PERSON DETECTED</div>
                     <div class="mono" style="font-size: 0.85rem; color: #64748b;">
-                        Absence certainty verified at {pct_conf}%. Sector clear.
+                        Absence verified at {pct_conf}%. Sector clear.
                     </div>
                     <div class="meter-container">
                         <div class="meter-fill-vacant" style="width: {pct_conf}%;"></div>
@@ -275,7 +280,7 @@ with col_telemetry:
                 unsafe_allow_html=True
             )
 
-        # Stat cards
+        # Metrics
         m1, m2 = st.columns(2)
         with m1:
             st.markdown(
@@ -300,7 +305,7 @@ with col_telemetry:
 
         st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
 
-        # Probability breakdown chart
+        # Breakdown Chart
         chart_data = pd.DataFrame({
             "Label": labels[:len(prediction)],
             "Probability": [float(p) for p in prediction]

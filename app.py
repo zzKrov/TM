@@ -4,6 +4,9 @@ import base64
 import streamlit as st
 import streamlit.components.v1 as components
 
+# ---------------------------------------------------------
+# PAGE SETUP
+# ---------------------------------------------------------
 st.set_page_config(
     page_title="SENTINEL // Person Detector",
     page_icon="🛡️",
@@ -12,18 +15,22 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# VERIFY NEW JAVASCRIPT MODEL ARTIFACTS
+# VERIFY LOCAL TFJS FILES
 # ---------------------------------------------------------
 required_files = ["model.json", "metadata.json", "weights.bin"]
 missing = [f for f in required_files if not os.path.exists(f)]
 
 if missing:
-    st.error(f"Missing model files: {', '.join(missing)}. Ensure they are in the repository root.")
+    st.error(f"Missing model files: {', '.join(missing)}. Place them in your repository root.")
     st.stop()
 
-# Read the NEW model artifacts uploaded today
+# Read the local JavaScript Pose model files
 with open("model.json", "r", encoding="utf-8") as f:
     model_json_data = json.load(f)
+
+# Ensure the weights manifest expects 'weights.bin'
+if "weightsManifest" in model_json_data and len(model_json_data["weightsManifest"]) > 0:
+    model_json_data["weightsManifest"][0]["paths"] = ["weights.bin"]
 
 with open("metadata.json", "r", encoding="utf-8") as f:
     metadata_json_data = json.load(f)
@@ -34,7 +41,7 @@ with open("weights.bin", "rb") as f:
 labels = metadata_json_data.get("labels", ["Person", "Person't"])
 
 # ---------------------------------------------------------
-# EMBEDDED REAL-TIME POSE DETECTOR
+# JAVASCRIPT POSE PIPELINE VIA STREAMLIT COMPONENT
 # ---------------------------------------------------------
 html_payload = f"""
 <!DOCTYPE html>
@@ -106,7 +113,7 @@ html_payload = f"""
 
         .layout {{
             display: grid;
-            grid-template-columns: 1.2fr 1fr;
+            grid-template-columns: 1.25fr 1fr;
             gap: 24px;
         }}
 
@@ -127,35 +134,54 @@ html_payload = f"""
             justify-content: center;
             align-items: center;
             border: 1px solid rgba(255, 255, 255, 0.06);
+            position: relative;
         }}
 
         canvas {{
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }}
+
+        .btn-row {{
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 14px;
         }}
 
         .btn {{
             width: 100%;
-            margin-top: 14px;
-            padding: 14px;
+            padding: 13px;
             background: rgba(0, 255, 136, 0.12);
             border: 1px solid rgba(0, 255, 136, 0.4);
             color: var(--bio-green);
             font-family: 'Chakra Petch', sans-serif;
             font-weight: 700;
-            font-size: 1rem;
+            font-size: 0.95rem;
             letter-spacing: 0.05em;
             border-radius: 8px;
             cursor: pointer;
             text-transform: uppercase;
             transition: 0.2s all;
+            text-align: center;
         }}
 
         .btn:hover {{
             background: var(--bio-green);
             color: #000;
             box-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
+        }}
+
+        .btn-secondary {{
+            background: rgba(100, 116, 139, 0.15);
+            border-color: rgba(100, 116, 139, 0.4);
+            color: #cbd5e1;
+        }}
+        .btn-secondary:hover {{
+            background: #cbd5e1;
+            color: #000;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
         }}
 
         .status-hero {{
@@ -226,6 +252,10 @@ html_payload = f"""
             border-radius: 8px;
             padding: 14px;
         }}
+
+        #file-input {{
+            display: none;
+        }}
     </style>
 </head>
 
@@ -248,18 +278,24 @@ html_payload = f"""
                 <span style="font-family: 'Chakra Petch'; font-size: 0.95rem;">OPTICAL VIEWPORT</span>
                 <span id="fps" class="mono" style="font-size: 0.75rem; color: var(--bio-green);">FPS: --</span>
             </div>
+            
             <div class="canvas-box">
                 <canvas id="canvas"></canvas>
             </div>
-            <button id="btn" class="btn" onclick="startDetection()">INITIALIZE CAMERA DETECTOR</button>
+
+            <div class="btn-row">
+                <button id="btn" class="btn" onclick="toggleWebcam()">START WEBCAM DETECTOR</button>
+                <label class="btn btn-secondary" for="file-input">UPLOAD IMAGE SAMPLE</label>
+                <input type="file" id="file-input" accept="image/*" onchange="handleFileUpload(event)">
+            </div>
         </div>
 
         <div>
             <div id="hero-box" class="status-hero vacant">
-                <div id="hero-tag" class="hero-tag" style="color: var(--slate);">○ SENSOR IDLE</div>
+                <div id="hero-tag" class="hero-tag" style="color: var(--slate);">○ SENSOR STANDBY</div>
                 <div id="hero-title" class="hero-title" style="color: var(--slate);">STANDBY</div>
                 <div id="hero-desc" class="mono" style="font-size: 0.8rem; color: var(--slate);">
-                    Click the button below the viewport to run live person discrimination.
+                    Start the optical sensor or upload a test picture to evaluate human presence.
                 </div>
                 <div class="meter">
                     <div id="meter-bar" class="meter-bar bar-gray" style="width: 0%;"></div>
@@ -276,7 +312,7 @@ html_payload = f"""
                     <div id="stat-label" style="font-family: 'Chakra Petch'; font-size: 1.3rem; font-weight: 700; margin-top: 4px; color: var(--slate);">--</div>
                 </div>
                 <div class="telemetry-card">
-                    <div class="mono" style="font-size: 0.7rem; color: var(--slate);">SKELETAL SENSOR</div>
+                    <div class="mono" style="font-size: 0.7rem; color: var(--slate);">SKELETAL TRACKING</div>
                     <div id="stat-pose" style="font-family: 'Chakra Petch'; font-size: 1.3rem; font-weight: 700; margin-top: 4px; color: var(--slate);">WAITING</div>
                 </div>
             </div>
@@ -293,42 +329,51 @@ html_payload = f"""
         const metadataJSON = {json.dumps(metadata_json_data)};
         const weightsB64 = "{weights_b64}";
 
-        let model, webcam, ctx;
+        let model = null;
+        let webcam = null;
+        let ctx = null;
         let active = false;
         let lastTime = performance.now();
 
-        function base64ToBuffer(b64) {{
+        // Convert base64 to binary Uint8Array
+        function base64ToUint8(b64) {{
             const bin = window.atob(b64);
-            const buf = new ArrayBuffer(bin.length);
-            const view = new Uint8Array(buf);
-            for (let i = 0; i < bin.length; i++) {{
-                view[i] = bin.charCodeAt(i);
+            const len = bin.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {{
+                bytes[i] = bin.charCodeAt(i);
             }}
-            return buf;
+            return bytes;
         }}
 
-        async function startDetection() {{
+        // Loads the model directly from local memory using loadFromFiles
+        async function ensureModelLoaded() {{
+            if (model) return model;
+
+            const desc = document.getElementById("hero-desc");
+            desc.innerText = "Loading PoseNet backbone and local weights...";
+
+            // Construct standard File objects for the three Teachable Machine components
+            const modelFile = new File([JSON.stringify(modelJSON)], "model.json", {{ type: "application/json" }});
+            const weightsFile = new File([base64ToUint8(weightsB64)], "weights.bin", {{ type: "application/octet-stream" }});
+            const metadataFile = new File([JSON.stringify(metadataJSON)], "metadata.json", {{ type: "application/json" }});
+
+            // Uses tmPose.loadFromFiles to bypass network/blob URL fetching entirely
+            model = await tmPose.loadFromFiles(modelFile, weightsFile, metadataFile);
+            return model;
+        }}
+
+        async function toggleWebcam() {{
             const btn = document.getElementById("btn");
+            const desc = document.getElementById("hero-desc");
+
             if (!active) {{
-                btn.innerText = "LOADING POSE MODEL...";
+                btn.innerText = "INITIALIZING SENSORS...";
                 btn.disabled = true;
 
                 try {{
-                    // Create in-memory URLs for local model files
-                    const weightsBlob = new Blob([base64ToBuffer(weightsB64)], {{ type: 'application/octet-stream' }});
-                    const weightsUrl = URL.createObjectURL(weightsBlob);
+                    await ensureModelLoaded();
 
-                    modelJSON.weightsManifest[0].paths = [weightsUrl];
-                    const modelBlob = new Blob([JSON.stringify(modelJSON)], {{ type: 'application/json' }});
-                    const modelUrl = URL.createObjectURL(modelBlob);
-
-                    const metaBlob = new Blob([JSON.stringify(metadataJSON)], {{ type: 'application/json' }});
-                    const metaUrl = URL.createObjectURL(metaBlob);
-
-                    // Load the Teachable Machine PoseNet + Dense Classifier
-                    model = await tmPose.load(modelUrl, metaUrl);
-
-                    // Setup webcam
                     const size = 380;
                     webcam = new tmPose.Webcam(size, size, true);
                     await webcam.setup();
@@ -346,26 +391,31 @@ html_payload = f"""
                     btn.style.borderColor = "#ff3366";
                     btn.style.background = "rgba(255, 51, 102, 0.1)";
 
+                    desc.innerText = "Live webcam stream active. Estimating pose features...";
                     window.requestAnimationFrame(loop);
                 }} catch (err) {{
-                    console.error("Initialization error:", err);
-                    btn.innerText = "ERROR LOADING MODEL";
+                    console.error("Camera/Model Error:", err);
                     btn.disabled = false;
+                    btn.innerText = "START WEBCAM DETECTOR";
+                    desc.style.color = "#ff3366";
+                    desc.innerText = "Error: " + (err.message || err);
                 }}
             }} else {{
                 active = false;
                 if (webcam) webcam.stop();
-                btn.innerText = "INITIALIZE CAMERA DETECTOR";
+                btn.innerText = "START WEBCAM DETECTOR";
                 btn.style.color = "var(--bio-green)";
                 btn.style.borderColor = "rgba(0, 255, 136, 0.4)";
                 btn.style.background = "rgba(0, 255, 136, 0.12)";
+                desc.style.color = "var(--slate)";
+                desc.innerText = "Optical sensor halted.";
             }}
         }}
 
         async function loop() {{
             if (!active) return;
             webcam.update();
-            await predict();
+            await evaluateFrame(webcam.canvas);
 
             const delta = performance.now() - lastTime;
             lastTime = performance.now();
@@ -374,28 +424,59 @@ html_payload = f"""
             window.requestAnimationFrame(loop);
         }}
 
-        async function predict() {{
-            // 1. PoseNet extracts landmarks and 14739 features
-            const {{ pose, posenetOutput }} = await model.estimatePose(webcam.canvas);
+        // Handles static image uploads for instant verification
+        async function handleFileUpload(event) {{
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (active) toggleWebcam();
+
+            const desc = document.getElementById("hero-desc");
+            try {{
+                await ensureModelLoaded();
+
+                const img = new Image();
+                img.onload = async () => {{
+                    const canvas = document.getElementById("canvas");
+                    canvas.width = 380;
+                    canvas.height = 380;
+                    ctx = canvas.getContext("2d");
+                    ctx.drawImage(img, 0, 0, 380, 380);
+
+                    desc.innerText = "Evaluating static frame against pose classifier...";
+                    await evaluateFrame(canvas);
+                }};
+                img.src = URL.createObjectURL(file);
+            }} catch (err) {{
+                desc.style.color = "#ff3366";
+                desc.innerText = "Upload evaluation error: " + (err.message || err);
+            }}
+        }}
+
+        async function evaluateFrame(inputSource) {{
+            // 1. PoseNet estimates keypoints and extracts the 14,739 features
+            const {{ pose, posenetOutput }} = await model.estimatePose(inputSource);
             
-            // 2. Dense layers classify: ["Person", "Person't"]
+            // 2. Classify: ["Person", "Person't"]
             const prediction = await model.predict(posenetOutput);
 
-            // Render camera frame
-            ctx.drawImage(webcam.canvas, 0, 0);
+            // Draw to canvas if coming from webcam
+            if (inputSource !== document.getElementById("canvas")) {{
+                ctx.drawImage(inputSource, 0, 0);
+            }}
 
-            // Draw skeletal keypoints if detected
+            // Draw skeletal landmarks
             if (pose) {{
                 tmPose.drawKeypoints(pose.keypoints, 0.5, ctx);
                 tmPose.drawSkeleton(pose.keypoints, 0.5, ctx);
-                document.getElementById("stat-pose").innerText = "TRACKING";
+                document.getElementById("stat-pose").innerText = "LOCKED";
                 document.getElementById("stat-pose").style.color = "#00ff88";
             }} else {{
                 document.getElementById("stat-pose").innerText = "NO SKELETON";
                 document.getElementById("stat-pose").style.color = "#64748b";
             }}
 
-            // Evaluation: prediction[0] = Person, prediction[1] = Person't
+            // Map probabilities: index 0 = Person, index 1 = Person't
             const personProb = prediction[0].probability;
             const absentProb = prediction[1] ? prediction[1].probability : (1.0 - personProb);
             const isPerson = personProb > 0.55;
@@ -413,19 +494,21 @@ html_payload = f"""
             if (isPerson) {{
                 heroBox.className = "status-hero detected";
                 heroTag.style.color = "#00ff88";
-                heroTag.innerText = "● AFFIRMATIVE DETECTION";
+                heroTag.innerText = "● VERIFIED ORGANIC SIGNATURE";
                 heroTitle.style.color = "#00ff88";
-                heroTitle.innerText = "PERSON CONFIRMED";
-                heroDesc.innerText = `Human presence confirmed with ${{displayScore}}% certainty.`;
+                heroTitle.innerText = "PERSON DETECTED";
+                heroDesc.style.color = "#cbd5e1";
+                heroDesc.innerText = `Human confirmed with ${{displayScore}}% certainty.`;
                 meterBar.className = "meter-bar bar-green";
                 statLabel.innerText = "{labels[0]}";
                 statLabel.style.color = "#00ff88";
             }} else {{
                 heroBox.className = "status-hero vacant";
                 heroTag.style.color = "#64748b";
-                heroTag.innerText = "○ PERIMETER CLEAR";
+                heroTag.innerText = "○ PERIMETER VACANT";
                 heroTitle.style.color = "#64748b";
                 heroTitle.innerText = "NO PERSON DETECTED";
+                heroDesc.style.color = "#64748b";
                 heroDesc.innerText = `Absence verified with ${{displayScore}}% certainty.`;
                 meterBar.className = "meter-bar bar-gray";
                 statLabel.innerText = "{labels[1]}";
@@ -440,4 +523,4 @@ html_payload = f"""
 </html>
 """
 
-components.html(html_payload, height=650, scrolling=False)
+components.html(html_payload, height=660, scrolling=False)

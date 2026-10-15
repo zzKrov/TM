@@ -15,6 +15,81 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
+# LÍNEA BASE VISUAL: GRADIENTES ESMERALDA Y CIBERNÉTICOS
+# ---------------------------------------------------------
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=JetBrains+Mono:wght@500;700&family=Plus+Jakarta+Sans:wght@600;700&display=swap');
+
+html, body, [data-testid="stAppViewContainer"] {
+    background-color: #060709 !important;
+    color: #f8fafc !important;
+    font-family: 'Plus Jakarta Sans', sans-serif !important;
+    overflow-x: hidden;
+}
+
+[data-testid="stHeader"] { background: transparent !important; }
+
+/* 1. Gradiente animado continuo */
+.stApp {
+    background: linear-gradient(135deg, #060709 0%, #081410 30%, #0d1e18 60%, #05090a 100%) !important;
+    background-size: 300% 300% !important;
+    animation: matrixShift 18s ease infinite alternate !important;
+}
+
+@keyframes matrixShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* 2. Fluidos orgánicos bio-luminiscentes */
+.fluid-matrix-1 {
+    position: fixed;
+    top: 15%;
+    left: -120px;
+    width: 520px;
+    height: 520px;
+    background: radial-gradient(circle, rgba(0, 255, 136, 0.12) 0%, rgba(6, 78, 59, 0.04) 60%, transparent 75%);
+    border-radius: 40% 60% 70% 30% / 50% 60% 40% 50%;
+    filter: blur(85px);
+    animation: matrixDrift1 22s infinite alternate ease-in-out;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.fluid-matrix-2 {
+    position: fixed;
+    bottom: 5%;
+    right: -100px;
+    width: 560px;
+    height: 560px;
+    background: radial-gradient(circle, rgba(16, 185, 129, 0.1) 0%, rgba(0, 255, 136, 0.03) 60%, transparent 75%);
+    border-radius: 60% 40% 50% 50% / 40% 50% 60% 50%;
+    filter: blur(90px);
+    animation: matrixDrift2 25s infinite alternate ease-in-out;
+    pointer-events: none;
+    z-index: 0;
+}
+
+@keyframes matrixDrift1 {
+    0% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(120px, 70px) scale(1.15); }
+    100% { transform: translate(40px, 140px) scale(0.95); }
+}
+
+@keyframes matrixDrift2 {
+    0% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(-100px, -70px) scale(1.2); }
+    100% { transform: translate(-30px, -120px) scale(0.9); }
+}
+</style>
+
+<div class="fluid-matrix-1"></div>
+<div class="fluid-matrix-2"></div>
+""", unsafe_allow_html=True)
+
+# ---------------------------------------------------------
 # VERIFICACIÓN DE MODELOS TFJS LOCALES
 # ---------------------------------------------------------
 required_files = ["model.json", "metadata.json", "weights.bin"]
@@ -39,7 +114,7 @@ with open("weights.bin", "rb") as f:
 labels = metadata_json_data.get("labels", ["Persona", "Sin presencia"])
 
 # ---------------------------------------------------------
-# COMPONENTE CON LÓGICA DE DETECCIÓN EXACTA (CERO EN ROJO)
+# COMPONENTE JAVASCRIPT: DETECCIÓN FACIAL Y CORPORAL EXACTA
 # ---------------------------------------------------------
 html_payload = f"""
 <!DOCTYPE html>
@@ -52,7 +127,7 @@ html_payload = f"""
 
     <style>
         :root {{
-            --bg: #060709;
+            --bg: transparent;
             --bio-green: #00ff88;
             --coral-alert: #ef4444;
             --slate: #64748b;
@@ -65,7 +140,7 @@ html_payload = f"""
             background-color: var(--bg);
             color: #f8fafc;
             font-family: 'Plus Jakarta Sans', sans-serif;
-            padding: 16px;
+            padding: 10px;
             min-height: 100vh;
         }}
 
@@ -75,7 +150,7 @@ html_payload = f"""
             align-items: center;
             border-bottom: 1px solid var(--border);
             padding-bottom: 12px;
-            margin-bottom: 20px;
+            margin-bottom: 16px;
         }}
 
         .brand-signature {{
@@ -104,6 +179,7 @@ html_payload = f"""
             border: 1px solid var(--border);
             border-radius: 10px;
             padding: 14px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
         }}
 
         .canvas-box {{
@@ -116,6 +192,7 @@ html_payload = f"""
             justify-content: center;
             align-items: center;
             border: 1px solid rgba(255, 255, 255, 0.06);
+            position: relative;
         }}
 
         canvas {{
@@ -151,6 +228,7 @@ html_payload = f"""
         .btn:hover {{
             background: var(--bio-green);
             color: #000;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.4);
         }}
 
         .btn-secondary {{
@@ -172,20 +250,20 @@ html_payload = f"""
         }}
 
         .status-hero.detected {{
-            background: linear-gradient(145deg, rgba(0, 255, 136, 0.1) 0%, rgba(13, 16, 24, 0.95) 100%);
+            background: linear-gradient(145deg, rgba(0, 255, 136, 0.12) 0%, rgba(13, 16, 24, 0.95) 100%);
             border-color: rgba(0, 255, 136, 0.6);
-            box-shadow: 0 8px 25px rgba(0, 255, 136, 0.15);
+            box-shadow: 0 8px 30px rgba(0, 255, 136, 0.2);
         }}
 
         .status-hero.vacant {{
-            background: linear-gradient(145deg, rgba(239, 68, 68, 0.1) 0%, rgba(13, 16, 24, 0.95) 100%);
-            border-color: rgba(239, 68, 68, 0.5);
-            box-shadow: 0 8px 25px rgba(239, 68, 68, 0.15);
+            background: linear-gradient(145deg, rgba(239, 68, 68, 0.12) 0%, rgba(13, 16, 24, 0.95) 100%);
+            border-color: rgba(239, 68, 68, 0.6);
+            box-shadow: 0 8px 30px rgba(239, 68, 68, 0.2);
         }}
 
         .count-badge {{
             font-family: 'Chakra Petch', sans-serif;
-            font-size: 3.2rem;
+            font-size: 3.4rem;
             font-weight: 700;
             line-height: 1;
             margin-bottom: 4px;
@@ -265,28 +343,28 @@ html_payload = f"""
                     SIN PERSONA DETECTADA
                 </div>
                 <div id="hero-desc" style="font-size:0.82rem; color:#94a3b8;">
-                    No se registra presencia humana válida en el encuadre óptico.
+                    No se registra rostro ni presencia humana válida en el encuadre óptico.
                 </div>
                 <div class="meter">
                     <div id="meter-bar" class="meter-bar bar-red" style="width: 0%;"></div>
                 </div>
                 <div style="display:flex; justify-content:space-between; font-size:0.75rem; font-family:'JetBrains Mono'; color:#64748b;">
-                    <span>CONFIANZA DEL MODELO</span>
+                    <span>CONFIANZA DE SEÑAL</span>
                     <span id="conf-txt">0.0%</span>
                 </div>
             </div>
 
             <div class="telemetry-grid">
                 <div class="telemetry-card">
-                    <div style="font-family:'JetBrains Mono'; font-size:0.7rem; color:var(--slate);">CLASIFICADOR</div>
-                    <div id="stat-label" style="font-family:'Chakra Petch'; font-size:1.1rem; font-weight:700; color:#ef4444; margin-top:2px;">
-                        {labels[1]}
+                    <div style="font-family:'JetBrains Mono'; font-size:0.7rem; color:var(--slate);">CANAL FACIAL</div>
+                    <div id="stat-face" style="font-family:'Chakra Petch'; font-size:1.1rem; font-weight:700; color:#ef4444; margin-top:2px;">
+                        NO DETECTADO
                     </div>
                 </div>
                 <div class="telemetry-card">
                     <div style="font-family:'JetBrains Mono'; font-size:0.7rem; color:var(--slate);">ESTRUCTURA ÓSEA</div>
                     <div id="stat-pose" style="font-family:'Chakra Petch'; font-size:1.1rem; font-weight:700; color:#64748b; margin-top:2px;">
-                        NO DETECTADA
+                        INACTIVA
                     </div>
                 </div>
             </div>
@@ -398,13 +476,13 @@ html_payload = f"""
             document.getElementById("hero-tag").style.color = "#ef4444";
             document.getElementById("hero-title").innerText = "SIN PERSONA DETECTADA";
             document.getElementById("hero-title").style.color = "#ef4444";
-            document.getElementById("hero-desc").innerText = "No se registra presencia humana válida en el encuadre óptico.";
+            document.getElementById("hero-desc").innerText = "No se registra presencia humana ni rostro válido en el encuadre.";
             document.getElementById("meter-bar").className = "meter-bar bar-red";
             document.getElementById("meter-bar").style.width = `${{conf}}%`;
             document.getElementById("conf-txt").innerText = `${{conf}}%`;
-            document.getElementById("stat-label").innerText = "{labels[1]}";
-            document.getElementById("stat-label").style.color = "#ef4444";
-            document.getElementById("stat-pose").innerText = "NO DETECTADA";
+            document.getElementById("stat-face").innerText = "NO DETECTADO";
+            document.getElementById("stat-face").style.color = "#ef4444";
+            document.getElementById("stat-pose").innerText = "INACTIVA";
             document.getElementById("stat-pose").style.color = "#64748b";
         }}
 
@@ -416,34 +494,71 @@ html_payload = f"""
                 ctx.drawImage(inputSource, 0, 0);
             }}
 
+            // EXTRACCIÓN DE PUNTOS FACIALES (0: Nariz, 1: Ojo Izq, 2: Ojo Der, 3: Oreja Izq, 4: Oreja Der)
+            let faceDetected = false;
+            let faceCenterX = 0, faceCenterY = 0, validFacePts = 0;
+
+            if (pose && pose.keypoints) {{
+                for (let i = 0; i <= 4; i++) {{
+                    const kp = pose.keypoints[i];
+                    if (kp && kp.score > 0.38) {{
+                        faceDetected = true;
+                        faceCenterX += kp.position.x;
+                        faceCenterY += kp.position.y;
+                        validFacePts++;
+                    }}
+                }}
+            }}
+
             const hasValidPose = pose && pose.score > 0.42;
             const personProb = prediction[0] ? prediction[0].probability : 0;
             const rawScore = Math.round(personProb * 100);
 
-            if (hasValidPose && personProb > 0.62) {{
+            // Se confirma presencia si hay postura corporal VÁLIDA O rostro VÁLIDO
+            const confirmedInFrame = (faceDetected && validFacePts >= 2) || (hasValidPose && personProb > 0.60);
+
+            if (confirmedInFrame) {{
                 consecutiveFrames++;
             }} else {{
                 consecutiveFrames = 0;
             }}
 
             if (consecutiveFrames >= MIN_CONFIRM_FRAMES) {{
+                // Dibujar esqueleto si está presente
                 if (pose) {{
                     tmPose.drawKeypoints(pose.keypoints, 0.5, ctx);
                     tmPose.drawSkeleton(pose.keypoints, 0.5, ctx);
                 }}
+
+                // Dibujar anillo facial luminoso si se identificó rostro
+                if (faceDetected && validFacePts > 0) {{
+                    const cx = faceCenterX / validFacePts;
+                    const cy = faceCenterY / validFacePts;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, 32, 0, Math.PI * 2);
+                    ctx.strokeStyle = '#00ff88';
+                    ctx.lineWidth = 2.5;
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = '#00ff88';
+                    ctx.stroke();
+                    ctx.shadowBlur = 0;
+                }}
+
                 document.getElementById("hero-box").className = "status-hero detected";
                 document.getElementById("count-display").innerText = "1";
                 document.getElementById("count-display").style.color = "#00ff88";
                 document.getElementById("hero-tag").style.color = "#00ff88";
                 document.getElementById("hero-title").innerText = "PERSONA DETECTADA";
                 document.getElementById("hero-title").style.color = "#00ff88";
-                document.getElementById("hero-desc").innerText = "Presencia humana confirmada mediante puntos articulares y clasificación.";
+                document.getElementById("hero-desc").innerText = faceDetected 
+                    ? "Presencia confirmada (Rostro detectado en encuadre)."
+                    : "Presencia humana confirmada mediante puntos articulares corporales.";
                 document.getElementById("meter-bar").className = "meter-bar bar-green";
-                document.getElementById("meter-bar").style.width = `${{rawScore}}%`;
-                document.getElementById("conf-txt").innerText = `${{rawScore}}%`;
-                document.getElementById("stat-label").innerText = "{labels[0]}";
-                document.getElementById("stat-label").style.color = "#00ff88";
-                document.getElementById("stat-pose").innerText = "ACTIVA";
+                document.getElementById("meter-bar").style.width = `${{Math.max(rawScore, 75)}}%`;
+                document.getElementById("conf-txt").innerText = `${{Math.max(rawScore, 75)}}%`;
+                document.getElementById("stat-face").innerText = faceDetected ? "CONFIRMADO" : "FUERA DE ENCUADRE";
+                document.getElementById("stat-face").style.color = faceDetected ? "#00ff88" : "#94a3b8";
+                document.getElementById("stat-pose").innerText = hasValidPose ? "ACTIVA" : "PARCIAL";
                 document.getElementById("stat-pose").style.color = "#00ff88";
             }} else {{
                 setNoPersonState(rawScore < 50 ? 0 : rawScore);
